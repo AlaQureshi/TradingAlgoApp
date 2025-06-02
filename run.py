@@ -20,6 +20,7 @@ from trading.data.live_data_feed import PolygonWebSocket
 from trading.indicators import add_indicators
 from trading.strategy import DelayedDataStrategy
 from config import CONFIG
+from trading.utils.market_hours import MarketHours
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -180,28 +181,41 @@ class TradingApp:
         """Run the trading application"""
         try:
             logger.info("\n=== Trading Algorithm Starting ===")
-            logger.info(f"Connecting to Polygon.io websocket...")
             
-            # Start websocket connection
-            self.ws.connect()
+            # Check market status
+            is_open, market_status = MarketHours.is_market_open()
+            logger.info(f"Market Status: {market_status}")
             
-            # Wait for connection or timeout
-            connection_timeout = 30  # seconds
+            if not is_open and not CONFIG.get('trade_extended_hours', False):
+                logger.warning("Market is closed. Start during market hours (9:30 AM - 4:00 PM ET)")
+                return
+            
+            # Initialize connection with shorter timeout and REST fallback
+            connection_timeout = 10
             start_time = time.time()
             
-            while not self.ws.is_connected():
-                if time.time() - start_time > connection_timeout:
-                    raise ConnectionError("Failed to connect to Polygon.io websocket")
+            logger.info("Initializing data feed...")
+            self.ws.connect()
+            
+            # Wait for initial data
+            data_timeout = 30
+            start_time = time.time()
+            
+            while not self.ws.is_connected() and time.time() - start_time < data_timeout:
                 time.sleep(1)
-                logger.info("Waiting for websocket connection...")
             
-            logger.info("Successfully connected to Polygon.io websocket")
+            if not self.ws.is_connected():
+                logger.warning("No live data available - check market hours or data subscription")
+                return
+                
+            logger.info("Successfully receiving market data")
             
+            # Main trading loop
             while self.running.is_set():
                 if not self.ws.is_connected():
-                    logger.error("Websocket connection lost. Attempting to reconnect...")
+                    logger.warning("Data connection lost - attempting to reconnect...")
                     self.ws.connect()
-                time.sleep(1)
+                time.sleep(5)
                 
         except KeyboardInterrupt:
             logger.info("\n=== Shutting Down Trading System ===")

@@ -9,23 +9,29 @@ class DelayedDataStrategy:
         self.delay = config.get('DELAY_MINUTES', 15)
         
     def analyze_trend(self, data):
-        """Analyze longer-term trends suitable for delayed data"""
+        """Analyze using minute-level data"""
         df = data.copy()
         
-        # Add momentum indicators
-        df['trend'] = df['price'].diff(self.min_holding).fillna(0)
-        df['volume_ma'] = df['size'].rolling(window=20).mean()
-        df['volume_trend'] = df['size'] > df['volume_ma']
+        # Add candlestick patterns
+        df['body'] = df['price'] - df['open']
+        df['upper_wick'] = df['high'] - df.apply(lambda x: max(x['open'], x['price']), axis=1)
+        df['lower_wick'] = df.apply(lambda x: min(x['open'], x['price']), axis=1) - df['low']
         
-        # Detect strong trends that persist beyond data delay
-        strong_trend = (df['trend'].abs() > df['price'].std() * 1.5) & (df['volume_trend'])
-        trend_direction = np.sign(df['trend'])
+        # Calculate momentum using OHLC
+        df['true_range'] = df.apply(
+            lambda x: max([
+                x['high'] - x['low'],
+                abs(x['high'] - x['price'].shift(1)),
+                abs(x['low'] - x['price'].shift(1))
+            ]),
+            axis=1
+        )
         
         return {
-            'trend_strength': abs(df['trend'].iloc[-1]),
-            'trend_direction': trend_direction.iloc[-1],
-            'volume_support': df['volume_trend'].iloc[-1],
-            'persistence': strong_trend.sum() / len(strong_trend)
+            'trend_strength': df['true_range'].mean() / df['price'].mean(),
+            'trend_direction': np.sign(df['body'].rolling(5).mean().iloc[-1]),
+            'volume_support': df['size'] > df['size'].rolling(20).mean(),
+            'volatility': df['true_range'].std() / df['price'].mean()
         }
     
     def get_position_size(self, trend_metrics, base_size):
