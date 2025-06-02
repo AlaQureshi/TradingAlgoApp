@@ -1,0 +1,12 @@
+Trading Algorithm AI - Simplified Backtest Results
+==============================================
+
+Total Return: 0.37%
+Annualized Return: 1.49%
+Annualized Volatility: 3.03%
+Sharpe Ratio: -0.1689
+Max Drawdown: 1.27%
+Win Rate: 10.71%
+Win/Loss Ratio: 0.46
+Profit Factor: 0.14
+Total Trades: 28
