@@ -4,3 +4,9 @@ __pycache__/
 .vscode/
 models/*.h5
 models/*.save
+
+# Log files
+*.log
+
+# Results directory
+results/
